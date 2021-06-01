@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- Theme Made By www.w3schools.com - No Copyright -->
+    <title>Salad - AI Bit Trader</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css"
+    />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body {
+        height: 110vh;
+      }
+      .jumbotron {
+        background-color: #f4511e;
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="jumbotron text-center">
+      <h1>Salad</h1>
+      <p>AI Bit Trade</p>
+      <form class="form-inline">
+        <div class="input-group">
+          <input
+            name="buy_price"
+            type="text"
+            class="form-control"
+            size="50"
+            placeholder="원하시는 코인 심블를 입력하세요 ex) KRW-BTC"
+            required
+          />
+          <div class="input-group-btn">
+            <button type="button" class="btn btn-danger">그래프 확인</button>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="container text-center">
+      <h2>사용 방법</h2>
+      <p>거래 하고 싶은 코인 코드를 입력 후 Trade 버튼을 눌러주세요</p>
+    </div>
+
+    <!-- 그래프 자리 -->
+    <div class="row">
+      <div class="col-sm-1"></div>
+      <div class="col-sm-5 chart"></div>
+      <div class="col-sm-5 pred"></div>
+      <div class="col-sm-1"></div>
+    </div>
+
+    <script>
+      $("button:contains('그래프 확인')").on("click", (evt) => {
+        let param = $("input[name=buy_price]").val();
+        if (param) {
+          $.get({
+            url: "/chart",
+            data: "ticker=" + param,
+            dataType: "json",
+            success: (res) => {
+              // 과거 그래프 그리는 부분
+              $(".chart").append(
+                `<canvas id="past-chart" width="2" height="1"></canvas>`
+              );
+              var array2 = [];
+              for (var i = 0; i < res.values[0].length; i++) {
+                array2.push(i);
+              }
+              var mychart = $("#past-chart");
+              var myLineChart = new Chart(mychart, {
+                type: "line",
+                data: {
+                  labels: array2,
+                  datasets: [
+                    {
+                      label: param + " 1380분 차트",
+                      data: res.values[0],
+                      borderColor: "blue",
+                      tension: 0.1,
+                    },
+                  ],
+                },
+              });
+              $(".container").append(
+                `<button type='button' class='btn btn-danger'>거래 시작</button>`
+              );
+              //
+              //
+              //
+              //  거래 하는 부분
+              $("button:contains('거래 시작')").on("click", (evt) => {
+                evt.preventDefault();
+                let param = $("input[name=buy_price]").val();
+                if (param) {
+                  $.get({
+                    url: "/buyCoin",
+                    data: "ticker=" + param,
+                    dataType: "json",
+                    success: (res) => {
+                      // alert("buy success");
+                      var my_money = res.my_money;
+                      var max_minute = res.max_minute;
+                      var buy_price = res.buy_price;
+                      // 예측 그래프 그리는 부분
+                      $(".pred").append(
+                        `<canvas id="pred-chart" width="2" height="1"></canvas>`
+                      );
+                      var mychart2 = $("#pred-chart");
+                      var array = [];
+                      for (var i = 1; i < res.pred[0].length + 1; i++) {
+                        array.push(i);
+                      }
+
+                      var buy_prices = [];
+                      for (var i = 0; i < res.pred[0].length; i++) {
+                        buy_prices.push(buy_price);
+                      }
+
+                      var myLineChart2 = new Chart(mychart2, {
+                        type: "line",
+                        data: {
+                          labels: array,
+                          datasets: [
+                            {
+                              label: param + " 예상 차트",
+                              data: res.pred[0],
+                              borderColor: "red",
+                              tension: 0.1,
+                            },
+                            {
+                              label: param + " 매수시 코인 가격",
+                              data: buy_prices,
+                              borderColor: "blue",
+                              tension: 0.1,
+                            },
+                          ],
+                        },
+                      });
+
+                      // 매수 했으면
+                      if (res.check) {
+                        $(".container").append(
+                          `<div>매수 전 자산: ${res.my_money}</div>`
+                        );
+                        $(".container").append(
+                          `<div>매수시 코인 가격: ${buy_price}</div>`
+                        );
+                        $(".container").append(
+                          `<div>매수 후 자산: ${res.after_trade_my_money}</div>`
+                        );
+                        $(".container").append(
+                          `<div>매도 예정 시간: ${res.max_minute}분 후(${res.end_time})</div>`
+                        );
+                        //
+                        //
+                        //
+
+                        $.get({
+                          url: "/sellCoin",
+                          data: { ticker: param, max_minute: max_minute },
+                          dataType: "json",
+                          success: (res) => {
+                            // alert("sell success");
+                            // 매도 했으면
+                            if (res.sell_price) {
+                              $(".container").append(
+                                `<div>매도 시 코인 가격: ${res.sell_price}</div>`
+                              );
+                              $(".container").append(
+                                `<div>매도 후 자산: ${res.after_trade_my_money}</div>`
+                              );
+                              $(".container").append(
+                                `수익: <div>${
+                                  res.after_trade_my_money - my_money
+                                }</div>`
+                              );
+                            } else {
+                              $(".container").append(
+                                `<div>${res.message}</div>`
+                              );
+                            }
+                          },
+                          error: (err) => {
+                            // alert("실패", err);
+                          },
+                        });
+                        //
+                        //
+                        //
+                      } else {
+                        // console.log(res);
+                        $(".container").append(`<div>${res.message}</div>`);
+                      }
+
+                      // 15분 후 실제 그래프 그리는 부분
+                      $.get({
+                        url: "/chart15",
+                        data: { ticker: param },
+                        dataType: "json",
+                        success: (res) => {
+                          // alert("chart15 통신 성공");
+                          var dataset = myLineChart2.data.datasets;
+                          dataset.push({
+                            label: param + " 실제 차트",
+                            data: res.values[0],
+                            borderColor: "black",
+                            tension: 0.1,
+                          });
+                          myLineChart2.update();
+                        },
+                        error: (err) => {
+                          // alert("실패", err);
+                        },
+                      });
+                    },
+                    error: (err) => {
+                      // alert("실패", err);
+                    },
+                  });
+                }
+              });
+              //
+              //
+              //
+              //
+              //
+              //
+            },
+            error: (err) => {
+              // alert("실패", err);
+            },
+          });
+        }
+      });
+    </script>
+  </body>
+</html>
